@@ -1,9 +1,16 @@
 /* @flow */
 
+/*
+作用: 创建一个不可修改的对象
+拓展: 参考之前的博客,对象的三个安全级别
+地址: https://blog.csdn.net/qq_25324335/article/details/79859407#t2
+*/
 export const emptyObject = Object.freeze({})
 
 // These helpers produce better VM code in JS engines due to their
 // explicitness and function inlining.
+
+ 
 export function isUndef (v: any): boolean %checks {
   return v === undefined || v === null
 }
@@ -43,7 +50,7 @@ export function isObject (obj: mixed): boolean %checks {
 }
 
 /**
- * Get the raw type string of a value, e.g., [object Object].
+ * Get the raw type string of a value, e.g., [object Object].  // "[object Array]"
  */
 const _toString = Object.prototype.toString
 
@@ -159,7 +166,8 @@ export function cached<F: Function> (fn: F): F {
 }
 
 /**
- * Camelize a hyphen-delimited string.
+ * Camelize a hyphen-delimited string. 
+ * e. hello-world => HelloWorld
  */
 const camelizeRE = /-(\w)/g
 export const camelize = cached((str: string): string => {

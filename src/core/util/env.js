@@ -20,6 +20,16 @@ export const isFF = UA && UA.match(/firefox\/(\d+)/)
 // Firefox has a "watch" function on Object.prototype...
 export const nativeWatch = ({}).watch
 
+/* 
+优化 底层
+ 测试了一下，分别用了async函数和while循环分别充当sleep函数作为测试函数，测试在加与不加passive下的浏览器表现。
+1.在不加passive的情况下，使用async函数不会阻塞浏览器的默认滚动行为。
+2.在不加passive的情况下，使用while循环函数会阻塞浏览器的默认滚动行为。
+3.在加passive的情况下，使用async函数表现没有变化。
+4.在加passive的情况下，使用while循环函数不会阻塞浏览器的默认滚动行为。
+5.在加passive的情况下，调用preventDefault函数会报错，滚动正常。
+结论：当监听滚动的函数可能影响滚动时，可以检测浏览器是否支持passive以优化浏览器表现。
+*/
 export let supportsPassive = false
 if (inBrowser) {
   try {
