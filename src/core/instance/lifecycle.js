@@ -336,6 +336,9 @@ export function deactivateChildComponent (vm: Component, direct?: boolean) {
 
 export function callHook (vm: Component, hook: string) {
   // #7573 disable dep collection when invoking lifecycle hooks
+  /* 
+  pushTarget 和 popTarget 函数可以先忽略，这是用来设置全局 Watcher（订阅者）的。接着是取出钩子函数 handlers，注意的是钩子函数之所以为数组，是因为在 mergeOptoins 合并参数时规范化了，将 options.beforeCreate 的键值改为钩子函数的数组。 然后将 handlers 作为参数传入 invokeWithErrorHandling 函数，这个函数定义在 src\core\util\error.js
+  */
   pushTarget()
   const handlers = vm.$options[hook]
   const info = `${hook} hook`

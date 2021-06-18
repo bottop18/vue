@@ -3980,8 +3980,11 @@
     isStaticKey = genStaticKeysCached(options.staticKeys || '');
     isPlatformReservedTag = options.isReservedTag || no;
     // first pass: mark all non-static nodes.
+    // 标记 静态属性
     markStatic(root);
+
     // second pass: mark static roots.
+    // 标记 静态属性根节点
     markStaticRoots(root, false);
   }
 
@@ -3991,7 +3994,7 @@
       (keys ? ',' + keys : '')
     )
   }
-
+  // 标记 是否是静态，静态性能会优化
   function markStatic (node) {
     node.static = isStatic(node);
     if (node.type === 1) {

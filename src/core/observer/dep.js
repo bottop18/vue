@@ -16,29 +16,36 @@ export default class Dep {
   subs: Array<Watcher>;
 
   constructor () {
+    // 该 dep 发布者的 id
     this.id = uid++
+    // 存放订阅者
     this.subs = []
   }
 
-  addSub (sub: Watcher) {
+  // 添加订阅者
+  addSub(sub: Watcher) {
     this.subs.push(sub)
   }
 
-  removeSub (sub: Watcher) {
+    // 去除订阅者
+  removeSub(sub: Watcher) {
     remove(this.subs, sub)
   }
 
-  depend () {
+  // 向订阅者中添加当前 dep
+  // 在 Watcher 中也有这个操作，实现双向绑定
+  depend() {
     if (Dep.target) {
       Dep.target.addDep(this)
     }
   }
 
-  notify () {
+   // 通知 dep 中的所有 watcher，执行 watcher.update() 方法
+  notify() {
     // stabilize the subscriber list first
     const subs = this.subs.slice()
     if (process.env.NODE_ENV !== 'production' && !config.async) {
-      // subs aren't sorted in scheduler if not running async
+      // subs aren't sorted in scheduler if not running async异步
       // we need to sort them now to make sure they fire in correct
       // order
       subs.sort((a, b) => a.id - b.id)
@@ -55,12 +62,12 @@ export default class Dep {
 Dep.target = null
 const targetStack = []
 
-export function pushTarget (target: ?Watcher) {
+export function pushTarget(target: ?Watcher) {
   targetStack.push(target)
   Dep.target = target
 }
 
-export function popTarget () {
+export function popTarget() {
   targetStack.pop()
   Dep.target = targetStack[targetStack.length - 1]
 }

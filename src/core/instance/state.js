@@ -36,33 +36,58 @@ const sharedPropertyDefinition = {
   set: noop
 }
 
-export function proxy (target: Object, sourceKey: string, key: string) {
-  sharedPropertyDefinition.get = function proxyGetter () {
-    return this[sourceKey][key]
+// 注意这里是vm
+// 为每个属性设置拦截代理，并且挂载到 vm 上（target） 
+// 如 proxy(vm, `_props`, key)、proxy(vm, `_data`, key)
+export function proxy(target: Object, sourceKey: string, key: string) { //这里是重点 每个属性都设置get set
+  sharedPropertyDefinition.get = function proxyGetter() {
+    return this[sourceKey][key] //this[_data][treeData]
   }
-  sharedPropertyDefinition.set = function proxySetter (val) {
+  sharedPropertyDefinition.set = function proxySetter(val) {
     this[sourceKey][key] = val
   }
-  Object.defineProperty(target, key, sharedPropertyDefinition)
+  Object.defineProperty(target, key, sharedPropertyDefinition)//vm,treeData
 }
 
-export function initState (vm: Component) {
+// 初始化数据响应式：props、methods、data、computed、watch
+export function initState(vm: Component) {
+
+  // 初始化当前实例的 watchers 数组
   vm._watchers = []
+
+  // 拿到上边初始化合并后的 options 配置项
   const opts = vm.$options
+
+  // props 响应式，挂载到 vm
   if (opts.props) initProps(vm, opts.props)
+
+  // 1. 判断 methods 是否为函数
+  // 2. 方法名与 props 判重
+  // 3. 挂载到 vm
   if (opts.methods) initMethods(vm, opts.methods)
+  // 初始化 data 并挂载到 vm
   if (opts.data) {
+
+    // 初始化 data 并挂载到 vm
     initData(vm)
   } else {
+
+    // 响应式 data 上的数据
     observe(vm._data = {}, true /* asRootData */)
   }
+
+  // 1. 创建 watcher 实例，默认是懒执行，并挂载到 vm 上
+  // 2. computed 与上列 props、methods、data 判重
   if (opts.computed) initComputed(vm, opts.computed)
+
+  // 1. 处理 watch 对象与 watcher 实例的关系（一对一、一对多）
+  // 2. watch 的格式化和配置项
   if (opts.watch && opts.watch !== nativeWatch) {
     initWatch(vm, opts.watch)
   }
 }
 
-function initProps (vm: Component, propsOptions: Object) {
+function initProps(vm: Component, propsOptions: Object) {
   const propsData = vm.$options.propsData || {}
   const props = vm._props = {}
   // cache prop keys so that future props updates can iterate using Array
@@ -80,7 +105,7 @@ function initProps (vm: Component, propsOptions: Object) {
     if (process.env.NODE_ENV !== 'production') {
       const hyphenatedKey = hyphenate(key)
       if (isReservedAttribute(hyphenatedKey) ||
-          config.isReservedAttr(hyphenatedKey)) {
+        config.isReservedAttr(hyphenatedKey)) {
         warn(
           `"${hyphenatedKey}" is a reserved attribute and cannot be used as component prop.`,
           vm
@@ -110,7 +135,7 @@ function initProps (vm: Component, propsOptions: Object) {
   toggleObserving(true)
 }
 
-function initData (vm: Component) {
+function initData(vm: Component) {
   let data = vm.$options.data
   data = vm._data = typeof data === 'function'
     ? getData(data, vm)
@@ -152,7 +177,7 @@ function initData (vm: Component) {
   observe(data, true /* asRootData */)
 }
 
-export function getData (data: Function, vm: Component): any {
+export function getData(data: Function, vm: Component): any {
   // #7573 disable dep collection when invoking data getters
   pushTarget()
   try {
@@ -167,7 +192,7 @@ export function getData (data: Function, vm: Component): any {
 
 const computedWatcherOptions = { lazy: true }
 
-function initComputed (vm: Component, computed: Object) {
+function initComputed(vm: Component, computed: Object) {
   // $flow-disable-line
   const watchers = vm._computedWatchers = Object.create(null)
   // computed properties are just getters during SSR
@@ -210,7 +235,7 @@ function initComputed (vm: Component, computed: Object) {
   }
 }
 
-export function defineComputed (
+export function defineComputed(
   target: any,
   key: string,
   userDef: Object | Function
@@ -230,7 +255,7 @@ export function defineComputed (
     sharedPropertyDefinition.set = userDef.set || noop
   }
   if (process.env.NODE_ENV !== 'production' &&
-      sharedPropertyDefinition.set === noop) {
+    sharedPropertyDefinition.set === noop) {
     sharedPropertyDefinition.set = function () {
       warn(
         `Computed property "${key}" was assigned to but it has no setter.`,
@@ -241,8 +266,8 @@ export function defineComputed (
   Object.defineProperty(target, key, sharedPropertyDefinition)
 }
 
-function createComputedGetter (key) {
-  return function computedGetter () {
+function createComputedGetter(key) {
+  return function computedGetter() {
     const watcher = this._computedWatchers && this._computedWatchers[key]
     if (watcher) {
       if (watcher.dirty) {
@@ -257,12 +282,12 @@ function createComputedGetter (key) {
 }
 
 function createGetterInvoker(fn) {
-  return function computedGetter () {
+  return function computedGetter() {
     return fn.call(this, this)
   }
 }
 
-function initMethods (vm: Component, methods: Object) {
+function initMethods(vm: Component, methods: Object) {
   const props = vm.$options.props
   for (const key in methods) {
     if (process.env.NODE_ENV !== 'production') {
@@ -273,12 +298,14 @@ function initMethods (vm: Component, methods: Object) {
           vm
         )
       }
+      //去重
       if (props && hasOwn(props, key)) {
         warn(
           `Method "${key}" has already been defined as a prop.`,
           vm
         )
       }
+      //Avoid defining component methods that start with _ or $ 关键字
       if ((key in vm) && isReserved(key)) {
         warn(
           `Method "${key}" conflicts with an existing Vue instance method. ` +
@@ -286,11 +313,13 @@ function initMethods (vm: Component, methods: Object) {
         )
       }
     }
-    vm[key] = typeof methods[key] !== 'function' ? noop : bind(methods[key], vm)
+    //vm[key] = vm.methods[key]
+    //methods里面的方法放到外面
+    vm[key] = typeof methods[key] !== 'function' ? noop : bind(methods[key], vm) 
   }
 }
 
-function initWatch (vm: Component, watch: Object) {
+function initWatch(vm: Component, watch: Object) {
   for (const key in watch) {
     const handler = watch[key]
     if (Array.isArray(handler)) {
@@ -303,7 +332,7 @@ function initWatch (vm: Component, watch: Object) {
   }
 }
 
-function createWatcher (
+function createWatcher(
   vm: Component,
   expOrFn: string | Function,
   handler: any,
@@ -319,7 +348,7 @@ function createWatcher (
   return vm.$watch(expOrFn, handler, options)
 }
 
-export function stateMixin (Vue: Class<Component>) {
+export function stateMixin(Vue: Class<Component>) {
   // flow somehow has problems with directly declared definition object
   // when using Object.defineProperty, so we have to procedurally build up
   // the object here.
@@ -363,7 +392,7 @@ export function stateMixin (Vue: Class<Component>) {
       invokeWithErrorHandling(cb, vm, [watcher.value], vm, info)
       popTarget()
     }
-    return function unwatchFn () {
+    return function unwatchFn() {
       watcher.teardown()
     }
   }

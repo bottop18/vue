@@ -11,10 +11,17 @@
 
   /*  */
 
+  /*
+  作用: 创建一个不可修改的对象
+  拓展: 参考之前的博客,对象的三个安全级别
+  地址: https://blog.csdn.net/qq_25324335/article/details/79859407#t2
+  */
   var emptyObject = Object.freeze({});
 
   // These helpers produce better VM code in JS engines due to their
   // explicitness and function inlining.
+
+   
   function isUndef (v) {
     return v === undefined || v === null
   }
@@ -54,7 +61,7 @@
   }
 
   /**
-   * Get the raw type string of a value, e.g., [object Object].
+   * Get the raw type string of a value, e.g., [object Object].  // "[object Array]"
    */
   var _toString = Object.prototype.toString;
 
@@ -170,7 +177,8 @@
   }
 
   /**
-   * Camelize a hyphen-delimited string.
+   * Camelize a hyphen-delimited string. 
+   * e. hello-world => HelloWorld
    */
   var camelizeRE = /-(\w)/g;
   var camelize = cached(function (str) {
@@ -543,6 +551,16 @@
   // Firefox has a "watch" function on Object.prototype...
   var nativeWatch = ({}).watch;
 
+  /* 
+  优化 底层
+   测试了一下，分别用了async函数和while循环分别充当sleep函数作为测试函数，测试在加与不加passive下的浏览器表现。
+  1.在不加passive的情况下，使用async函数不会阻塞浏览器的默认滚动行为。
+  2.在不加passive的情况下，使用while循环函数会阻塞浏览器的默认滚动行为。
+  3.在加passive的情况下，使用async函数表现没有变化。
+  4.在加passive的情况下，使用while循环函数不会阻塞浏览器的默认滚动行为。
+  5.在加passive的情况下，调用preventDefault函数会报错，滚动正常。
+  结论：当监听滚动的函数可能影响滚动时，可以检测浏览器是否支持passive以优化浏览器表现。
+  */
   var supportsPassive = false;
   if (inBrowser) {
     try {
@@ -714,29 +732,36 @@
    * directives subscribing to it.
    */
   var Dep = function Dep () {
+    // 该 dep 发布者的 id
     this.id = uid++;
+    // 存放订阅者
     this.subs = [];
   };
 
+  // 添加订阅者
   Dep.prototype.addSub = function addSub (sub) {
     this.subs.push(sub);
   };
 
+    // 去除订阅者
   Dep.prototype.removeSub = function removeSub (sub) {
     remove(this.subs, sub);
   };
 
+  // 向订阅者中添加当前 dep
+  // 在 Watcher 中也有这个操作，实现双向绑定
   Dep.prototype.depend = function depend () {
     if (Dep.target) {
       Dep.target.addDep(this);
     }
   };
 
+   // 通知 dep 中的所有 watcher，执行 watcher.update() 方法
   Dep.prototype.notify = function notify () {
     // stabilize the subscriber list first
     var subs = this.subs.slice();
     if ( !config.async) {
-      // subs aren't sorted in scheduler if not running async
+      // subs aren't sorted in scheduler if not running async异步
       // we need to sort them now to make sure they fire in correct
       // order
       subs.sort(function (a, b) { return a.id - b.id; });
@@ -752,12 +777,12 @@
   Dep.target = null;
   var targetStack = [];
 
-  function pushTarget (target) {
+  function pushTarget(target) {
     targetStack.push(target);
     Dep.target = target;
   }
 
-  function popTarget () {
+  function popTarget() {
     targetStack.pop();
     Dep.target = targetStack[targetStack.length - 1];
   }
@@ -909,7 +934,7 @@
    */
   var shouldObserve = true;
 
-  function toggleObserving (value) {
+  function toggleObserving(value) {
     shouldObserve = value;
   }
 
@@ -918,13 +943,17 @@
    * object. Once attached, the observer converts the target
    * object's property keys into getter/setters that
    * collect dependencies and dispatch updates.
+   *  
    */
   var Observer = function Observer (value) {
     this.value = value;
+
+    // 实例化一个发布者 Dep
     this.dep = new Dep();
     this.vmCount = 0;
     def(value, '__ob__', this);
     if (Array.isArray(value)) {
+      // ...处理数组
       if (hasProto) {
         protoAugment(value, arrayMethods);
       } else {
@@ -932,6 +961,8 @@
       }
       this.observeArray(value);
     } else {
+      // value 为对象，为对象的每个属性设置响应式
+      // 也就是为啥响应式对象属性的对象也是响应式
       this.walk(value);
     }
   };
@@ -940,19 +971,23 @@
    * Walk through all properties and convert them into
    * getter/setters. This method should only be called when
    * value type is Object.
+   * 值为对象时
    */
   Observer.prototype.walk = function walk (obj) {
     var keys = Object.keys(obj);
     for (var i = 0; i < keys.length; i++) {
+      // 设置响应式对象
       defineReactive(obj, keys[i]);
     }
   };
 
   /**
    * Observe a list of Array items.
+   * // 值为数组时
    */
   Observer.prototype.observeArray = function observeArray (items) {
     for (var i = 0, l = items.length; i < l; i++) {
+      // 判断，优化，创建观察者实例
       observe(items[i]);
     }
   };
@@ -963,7 +998,7 @@
    * Augment a target Object or Array by intercepting
    * the prototype chain using __proto__
    */
-  function protoAugment (target, src) {
+  function protoAugment(target, src) {
     /* eslint-disable no-proto */
     target.__proto__ = src;
     /* eslint-enable no-proto */
@@ -974,7 +1009,7 @@
    * hidden properties.
    */
   /* istanbul ignore next */
-  function copyAugment (target, src, keys) {
+  function copyAugment(target, src, keys) {
     for (var i = 0, l = keys.length; i < l; i++) {
       var key = keys[i];
       def(target, key, src[key]);
@@ -982,24 +1017,34 @@
   }
 
   /**
+   * 注意这里是data
    * Attempt to create an observer instance for a value,
    * returns the new observer if successfully observed,
    * or the existing observer if the value already has one.
+   * 为对象创建观察者 Observe
    */
-  function observe (value, asRootData) {
+  function observe(value, asRootData) {
+
+    // 非对象和 VNode 实例不做响应式处理
     if (!isObject(value) || value instanceof VNode) {
       return
     }
     var ob;
+
+    // 若 value 对象上存在 __ob__ 属性并且实例是 Observer 则表示已经做过观察了，直接返回 __ob__ 键的值就是“观察的对象”。
     if (hasOwn(value, '__ob__') && value.__ob__ instanceof Observer) {
       ob = value.__ob__;
     } else if (
+
+      // 一堆判断对象的条件
       shouldObserve &&
       !isServerRendering() &&
       (Array.isArray(value) || isPlainObject(value)) &&
       Object.isExtensible(value) &&
       !value._isVue
     ) {
+
+      // 创建观察者实例
       ob = new Observer(value);
     }
     if (asRootData && ob) {
@@ -1011,7 +1056,7 @@
   /**
    * Define a reactive property on an Object.
    */
-  function defineReactive (
+  function defineReactive(
     obj,
     key,
     val,
@@ -1032,26 +1077,43 @@
       val = obj[key];
     }
 
+    //深度遍历 子observer对象，处理相同
     var childOb = !shallow && observe(val);
+
+    // 响应式核心
     Object.defineProperty(obj, key, {
       enumerable: true,
       configurable: true,
-      get: function reactiveGetter () {
+
+      // get 拦截对象的读取操作
+      get: function reactiveGetter() {
         var value = getter ? getter.call(obj) : val;
         if (Dep.target) {
+
+          // 依赖收集并通知实现观察者 dep 和订阅者 watcher 的双向绑定
           dep.depend();
+
+          // 依赖收集对象属性中的对象
           if (childOb) {
             childOb.dep.depend();
+
+            // 数组情况
             if (Array.isArray(value)) {
+
+              // 为数组项为对象的项添加依赖
               dependArray(value);
             }
           }
         }
         return value
       },
-      set: function reactiveSetter (newVal) {
+
+      // set 拦截对对象的设置操作
+      set: function reactiveSetter(newVal) {
         var value = getter ? getter.call(obj) : val;
         /* eslint-disable no-self-compare */
+
+        // 无新值，不用更新则直接 return
         if (newVal === value || (newVal !== newVal && value !== value)) {
           return
         }
@@ -1060,13 +1122,20 @@
           customSetter();
         }
         // #7981: for accessor properties without setter
+        // 没有 setter，只读属性，则直接 return
         if (getter && !setter) { return }
+
+        // 设置新值
         if (setter) {
           setter.call(obj, newVal);
         } else {
           val = newVal;
         }
+
+        // 将新值进行响应式
         childOb = !shallow && observe(newVal);
+
+        // dep 发布者通知更新
         dep.notify();
       }
     });
@@ -1077,7 +1146,7 @@
    * triggers change notification if the property doesn't
    * already exist.
    */
-  function set (target, key, val) {
+  function set(target, key, val) {
     if (
       (isUndef(target) || isPrimitive(target))
     ) {
@@ -1112,7 +1181,7 @@
   /**
    * Delete a property and trigger change if necessary.
    */
-  function del (target, key) {
+  function del(target, key) {
     if (
       (isUndef(target) || isPrimitive(target))
     ) {
@@ -1144,7 +1213,7 @@
    * Collect dependencies on array elements when the array is touched, since
    * we cannot intercept array element access like property getters.
    */
-  function dependArray (value) {
+  function dependArray(value) {
     for (var e = (void 0), i = 0, l = value.length; i < l; i++) {
       e = value[i];
       e && e.__ob__ && e.__ob__.dep.depend();
@@ -1181,7 +1250,7 @@
   /**
    * Helper that recursively merges two data objects together.
    */
-  function mergeData (to, from) {
+  function mergeData(to, from) {
     if (!from) { return to }
     var key, toVal, fromVal;
 
@@ -1211,7 +1280,7 @@
   /**
    * Data
    */
-  function mergeDataOrFn (
+  function mergeDataOrFn(
     parentVal,
     childVal,
     vm
@@ -1229,14 +1298,14 @@
       // merged result of both functions... no need to
       // check if parentVal is a function here because
       // it has to be a function to pass previous merges.
-      return function mergedDataFn () {
+      return function mergedDataFn() {
         return mergeData(
           typeof childVal === 'function' ? childVal.call(this, this) : childVal,
           typeof parentVal === 'function' ? parentVal.call(this, this) : parentVal
         )
       }
     } else {
-      return function mergedInstanceDataFn () {
+      return function mergedInstanceDataFn() {
         // instance merge
         var instanceData = typeof childVal === 'function'
           ? childVal.call(vm, vm)
@@ -1278,7 +1347,7 @@
   /**
    * Hooks and props are merged as arrays.
    */
-  function mergeHook (
+  function mergeHook(
     parentVal,
     childVal
   ) {
@@ -1294,7 +1363,7 @@
       : res
   }
 
-  function dedupeHooks (hooks) {
+  function dedupeHooks(hooks) {
     var res = [];
     for (var i = 0; i < hooks.length; i++) {
       if (res.indexOf(hooks[i]) === -1) {
@@ -1315,7 +1384,7 @@
    * a three-way merge between constructor options, instance
    * options and parent options.
    */
-  function mergeAssets (
+  function mergeAssets(
     parentVal,
     childVal,
     vm,
@@ -1374,23 +1443,23 @@
    * Other object hashes.
    */
   strats.props =
-  strats.methods =
-  strats.inject =
-  strats.computed = function (
-    parentVal,
-    childVal,
-    vm,
-    key
-  ) {
-    if (childVal && "development" !== 'production') {
-      assertObjectType(key, childVal, vm);
-    }
-    if (!parentVal) { return childVal }
-    var ret = Object.create(null);
-    extend(ret, parentVal);
-    if (childVal) { extend(ret, childVal); }
-    return ret
-  };
+    strats.methods =
+    strats.inject =
+    strats.computed = function (
+      parentVal,
+      childVal,
+      vm,
+      key
+    ) {
+      if (childVal && "development" !== 'production') {
+        assertObjectType(key, childVal, vm);
+      }
+      if (!parentVal) { return childVal }
+      var ret = Object.create(null);
+      extend(ret, parentVal);
+      if (childVal) { extend(ret, childVal); }
+      return ret
+    };
   strats.provide = mergeDataOrFn;
 
   /**
@@ -1405,13 +1474,13 @@
   /**
    * Validate component names
    */
-  function checkComponents (options) {
+  function checkComponents(options) {
     for (var key in options.components) {
       validateComponentName(key);
     }
   }
 
-  function validateComponentName (name) {
+  function validateComponentName(name) {
     if (!new RegExp(("^[a-zA-Z][\\-\\.0-9_" + (unicodeRegExp.source) + "]*$")).test(name)) {
       warn(
         'Invalid component name: "' + name + '". Component names ' +
@@ -1427,10 +1496,12 @@
   }
 
   /**
+   * props标准化处理
+   * 如果是没有props请忽略
    * Ensure all props option syntax are normalized into the
    * Object-based format.
    */
-  function normalizeProps (options, vm) {
+  function normalizeProps(options, vm) {
     var props = options.props;
     if (!props) { return }
     var res = {};
@@ -1465,9 +1536,10 @@
   }
 
   /**
+   * 同样，规范化inject
    * Normalize all injections into Object-based format
    */
-  function normalizeInject (options, vm) {
+  function normalizeInject(options, vm) {
     var inject = options.inject;
     if (!inject) { return }
     var normalized = options.inject = {};
@@ -1494,7 +1566,7 @@
   /**
    * Normalize raw function directives into object format.
    */
-  function normalizeDirectives (options) {
+  function normalizeDirectives(options) {
     var dirs = options.directives;
     if (dirs) {
       for (var key in dirs) {
@@ -1506,7 +1578,7 @@
     }
   }
 
-  function assertObjectType (name, value, vm) {
+  function assertObjectType(name, value, vm) {
     if (!isPlainObject(value)) {
       warn(
         "Invalid value for option \"" + name + "\": expected an Object, " +
@@ -1520,7 +1592,7 @@
    * Merge two option objects into a new one.
    * Core utility used in both instantiation and inheritance.
    */
-  function mergeOptions (
+  function mergeOptions(
     parent,
     child,
     vm
@@ -1533,18 +1605,28 @@
       child = child.options;
     }
 
+    //规范化 props
     normalizeProps(child, vm);
+
+    //规范化 inject
     normalizeInject(child, vm);
+
+    //规范化 指令
     normalizeDirectives(child);
 
     // Apply extends and mixins on the child options,
     // but only if it is a raw options object that isn't
     // the result of another mergeOptions call.
     // Only merged options has the _base property.
+    // 不是子组件才能满足 ,只要 有继承和mixins属性就递归生成静态属性
     if (!child._base) {
+
+      //继承 属性
       if (child.extends) {
         parent = mergeOptions(parent, child.extends, vm);
       }
+
+      //mixin 属性
       if (child.mixins) {
         for (var i = 0, l = child.mixins.length; i < l; i++) {
           parent = mergeOptions(parent, child.mixins[i], vm);
@@ -1554,17 +1636,74 @@
 
     var options = {};
     var key;
+
+    //parent 静态属性
     for (key in parent) {
       mergeField(key);
     }
+
+    //child用户配置属性
     for (key in child) {
       if (!hasOwn(parent, key)) {
         mergeField(key);
       }
     }
-    function mergeField (key) {
+
+
+
+    function mergeField(key) {
+
+      /*
+    const strats = {  //全局变量生成
+      activated: ƒ mergeHook(parentVal, childVal)
+      beforeCreate: ƒ mergeHook(parentVal, childVal)
+      beforeDestroy: ƒ mergeHook(parentVal, childVal)
+      beforeMount: ƒ mergeHook(parentVal, childVal)
+      beforeUpdate: ƒ mergeHook(parentVal, childVal)
+      components: ƒ mergeAssets(parentVal, childVal, vm, key)
+      computed: ƒ(parentVal, childVal, vm, key)
+      created: ƒ mergeHook(parentVal, childVal)
+      data: ƒ(parentVal, childVal, vm)
+      deactivated: ƒ mergeHook(parentVal, childVal)
+      destroyed: ƒ mergeHook(parentVal, childVal)
+      directives: ƒ mergeAssets(parentVal, childVal, vm, key)
+      el: ƒ(parent, child, vm, key)
+      errorCaptured: ƒ mergeHook(parentVal, childVal)
+      filters: ƒ mergeAssets(parentVal, childVal, vm, key)
+      inject: ƒ(parentVal, childVal, vm, key)
+      methods: ƒ(parentVal, childVal, vm, key)
+      mounted: ƒ mergeHook(parentVal, childVal)
+      props: ƒ(parentVal, childVal, vm, key)
+      propsData: ƒ(parent, child, vm, key)
+      provide: ƒ mergeDataOrFn(parentVal, childVal, vm)
+      serverPrefetch: ƒ mergeHook(parentVal, childVal)
+      updated: ƒ mergeHook(parentVal, childVal)
+      watch: ƒ(parentVal, childVal, vm, key)
+    }
+   */
+
+      /*     
+          if (key === components){
+                const strat =  function mergeAssets(
+                parentVal,
+                childVal,
+                vm,
+                key
+              ) {
+                var res = Object.create(parentVal || null);
+                if (childVal) {
+                  assertObjectType(key, childVal, vm);
+                  return extend(res, childVal)
+                } else {
+                  return res
+                }
+              }
+         }
+      
+      */
+
       var strat = strats[key] || defaultStrat;
-      options[key] = strat(parent[key], child[key], vm, key);
+      options[key] = strat(parent[key], child[key], vm, key);//静态属性，用户配置属性(是否又有components)，vm当前属性,components
     }
     return options
   }
@@ -1574,7 +1713,7 @@
    * This function is used because child instances need access
    * to assets defined in its ancestor chain.
    */
-  function resolveAsset (
+  function resolveAsset(
     options,
     type,
     id,
@@ -2432,7 +2571,7 @@
 
   /*  */
 
-  function initProvide (vm) {
+  function initProvide(vm) {
     var provide = vm.$options.provide;
     if (provide) {
       vm._provided = typeof provide === 'function'
@@ -2441,13 +2580,15 @@
     }
   }
 
-  function initInjections (vm) {
+  function initInjections(vm) {
     var result = resolveInject(vm.$options.inject, vm);
     if (result) {
+      // 关闭观察者的劫持监听
       toggleObserving(false);
       Object.keys(result).forEach(function (key) {
         /* istanbul ignore else */
         {
+          // 之前出现过，是给 vm 实例的 key 属性绑定数据劫持
           defineReactive(vm, key, result[key], function () {
             warn(
               "Avoid mutating an injected value directly since the changes will be " +
@@ -2458,14 +2599,18 @@
           });
         }
       });
+      // 开启观察者的劫持监听
       toggleObserving(true);
     }
   }
-
-  function resolveInject (inject, vm) {
+  /* 
+  遍历 inject 的属性，利用 vm tree 的树结构（和 DOM 类似），从最近具有 provide 并且 provide 具有该属性的父级组件中获取值。
+  */
+  function resolveInject(inject, vm) {
     if (inject) {
       // inject is :any because flow is not smart enough to figure out cached
       var result = Object.create(null);
+      // Reflect.ownKeys 可以获取对象的 Symbol 属性和不可枚举属性，返回值是对象的键名数组
       var keys = hasSymbol
         ? Reflect.ownKeys(inject)
         : Object.keys(inject);
@@ -2474,8 +2619,10 @@
         var key = keys[i];
         // #6574 in case the inject object is observed...
         if (key === '__ob__') { continue }
+        // from 是在 mergeOptions 中规范化的
         var provideKey = inject[key].from;
         var source = vm;
+          // 找到最近父级组件中具有 provide 参数且具有该 key 的值，赋给 result
         while (source) {
           if (source._provided && hasOwn(source._provided, provideKey)) {
             result[key] = source._provided[provideKey];
@@ -2484,6 +2631,7 @@
           source = source.$parent;
         }
         if (!source) {
+            // 如果找不到，判断是否有设置默认，没有默认值就给警告
           if ('default' in inject[key]) {
             var provideDefault = inject[key].default;
             result[key] = typeof provideDefault === 'function'
@@ -4222,6 +4370,9 @@
 
   function callHook (vm, hook) {
     // #7573 disable dep collection when invoking lifecycle hooks
+    /* 
+    pushTarget 和 popTarget 函数可以先忽略，这是用来设置全局 Watcher（订阅者）的。接着是取出钩子函数 handlers，注意的是钩子函数之所以为数组，是因为在 mergeOptoins 合并参数时规范化了，将 options.beforeCreate 的键值改为钩子函数的数组。 然后将 handlers 作为参数传入 invokeWithErrorHandling 函数，这个函数定义在 src\core\util\error.js
+    */
     pushTarget();
     var handlers = vm.$options[hook];
     var info = hook + " hook";
@@ -4425,6 +4576,7 @@
    * A watcher parses an expression, collects dependencies,
    * and fires callback when the expression value changes.
    * This is used for both the $watch() api and directives.
+   * 订阅者类，一个组件一个 watcher，订阅的数据改变时执行相应的回调函数
    */
   var Watcher = function Watcher (
     vm,
@@ -4482,10 +4634,15 @@
    * Evaluate the getter, and re-collect dependencies.
    */
   Watcher.prototype.get = function get () {
+
+    // 打开 Dep.target，Dep.target = this
     pushTarget(this);
+
     var value;
     var vm = this.vm;
     try {
+
+      // 这里执行 updateComponent，进入 patch 阶段更新视图。
       value = this.getter.call(vm, vm);
     } catch (e) {
       if (this.user) {
@@ -4499,6 +4656,7 @@
       if (this.deep) {
         traverse(value);
       }
+      // 最后清除 watcher 实例的各种依赖收集
       popTarget();
       this.cleanupDeps();
     }
@@ -4510,9 +4668,16 @@
    */
   Watcher.prototype.addDep = function addDep (dep) {
     var id = dep.id;
+
+    // watcher 订阅着 dep 发布者并进行缓存判重
     if (!this.newDepIds.has(id)) {
+
+      // 缓存 dep 发布者
       this.newDepIds.add(id);
       this.newDeps.push(dep);
+
+      // 发布者收集订阅者 watcher
+      // 在 dep 中也有这个操作，实现双向绑定
       if (!this.depIds.has(id)) {
         dep.addSub(this);
       }
@@ -4521,6 +4686,7 @@
 
   /**
    * Clean up for dependency collection.
+   * // 清除 dep 发布者的依赖收集
    */
   Watcher.prototype.cleanupDeps = function cleanupDeps () {
     var i = this.deps.length;
@@ -4543,14 +4709,22 @@
   /**
    * Subscriber interface.
    * Will be called when a dependency changes.
+   * // 订阅者 update() 更新
    */
   Watcher.prototype.update = function update () {
     /* istanbul ignore else */
+    // 懒执行如 computed
     if (this.lazy) {
       this.dirty = true;
+
+      // 同步执行，watcher 实例的一个配置项
     } else if (this.sync) {
+
+      // 同步执行，在使用 vm.$watch 或者 watch 选项时可以传一个 sync 选项，
       this.run();
     } else {
+
+      // 大部分 watcher 更新进入 watcher 的队列
       queueWatcher(this);
     }
   };
@@ -4558,8 +4732,13 @@
   /**
    * Scheduler job interface.
    * Will be called by the scheduler.
+   * // 1. 同步执行时会调用
+   * // 2. 浏览器异步队列刷新 flushSchedulerQueue() 会调用
    */
   Watcher.prototype.run = function run () {
+    // ...代码省略，active = false 直接返回
+    // 使用 this.get() 获取新值来更新旧值
+    // 并且执行 cb 回调函数，将新值和旧值返回。
     if (this.active) {
       var value = this.get();
       if (
@@ -4585,7 +4764,8 @@
 
   /**
    * Evaluate the value of the watcher.
-   * This only gets called for lazy watchers.
+   * This only gets called for lazy watchers.+
+   * // 订阅者 watcher 懒执行
    */
   Watcher.prototype.evaluate = function evaluate () {
     this.value = this.get();
@@ -4596,6 +4776,7 @@
    * Depend on all deps collected by this watcher.
    */
   Watcher.prototype.depend = function depend () {
+    // 调用当前 watcher 依赖的所有 dep 发布者的 depend()
     var i = this.deps.length;
     while (i--) {
       this.deps[i].depend();
@@ -4606,6 +4787,8 @@
    * Remove self from all dependencies' subscriber list.
    */
   Watcher.prototype.teardown = function teardown () {
+
+    // ...销毁该 watcher 实例
     if (this.active) {
       // remove self from vm's watcher list
       // this is a somewhat expensive operation so we skip it
@@ -4630,33 +4813,58 @@
     set: noop
   };
 
-  function proxy (target, sourceKey, key) {
-    sharedPropertyDefinition.get = function proxyGetter () {
-      return this[sourceKey][key]
+  // 注意这里是vm
+  // 为每个属性设置拦截代理，并且挂载到 vm 上（target） 
+  // 如 proxy(vm, `_props`, key)、proxy(vm, `_data`, key)
+  function proxy(target, sourceKey, key) { //这里是重点 每个属性都设置get set
+    sharedPropertyDefinition.get = function proxyGetter() {
+      return this[sourceKey][key] //this[_data][treeData]
     };
-    sharedPropertyDefinition.set = function proxySetter (val) {
+    sharedPropertyDefinition.set = function proxySetter(val) {
       this[sourceKey][key] = val;
     };
-    Object.defineProperty(target, key, sharedPropertyDefinition);
+    Object.defineProperty(target, key, sharedPropertyDefinition);//vm,treeData
   }
 
-  function initState (vm) {
+  // 初始化数据响应式：props、methods、data、computed、watch
+  function initState(vm) {
+
+    // 初始化当前实例的 watchers 数组
     vm._watchers = [];
+
+    // 拿到上边初始化合并后的 options 配置项
     var opts = vm.$options;
+
+    // props 响应式，挂载到 vm
     if (opts.props) { initProps(vm, opts.props); }
+
+    // 1. 判断 methods 是否为函数
+    // 2. 方法名与 props 判重
+    // 3. 挂载到 vm
     if (opts.methods) { initMethods(vm, opts.methods); }
+    // 初始化 data 并挂载到 vm
     if (opts.data) {
+
+      // 初始化 data 并挂载到 vm
       initData(vm);
     } else {
+
+      // 响应式 data 上的数据
       observe(vm._data = {}, true /* asRootData */);
     }
+
+    // 1. 创建 watcher 实例，默认是懒执行，并挂载到 vm 上
+    // 2. computed 与上列 props、methods、data 判重
     if (opts.computed) { initComputed(vm, opts.computed); }
+
+    // 1. 处理 watch 对象与 watcher 实例的关系（一对一、一对多）
+    // 2. watch 的格式化和配置项
     if (opts.watch && opts.watch !== nativeWatch) {
       initWatch(vm, opts.watch);
     }
   }
 
-  function initProps (vm, propsOptions) {
+  function initProps(vm, propsOptions) {
     var propsData = vm.$options.propsData || {};
     var props = vm._props = {};
     // cache prop keys so that future props updates can iterate using Array
@@ -4674,7 +4882,7 @@
       {
         var hyphenatedKey = hyphenate(key);
         if (isReservedAttribute(hyphenatedKey) ||
-            config.isReservedAttr(hyphenatedKey)) {
+          config.isReservedAttr(hyphenatedKey)) {
           warn(
             ("\"" + hyphenatedKey + "\" is a reserved attribute and cannot be used as component prop."),
             vm
@@ -4704,7 +4912,7 @@
     toggleObserving(true);
   }
 
-  function initData (vm) {
+  function initData(vm) {
     var data = vm.$options.data;
     data = vm._data = typeof data === 'function'
       ? getData(data, vm)
@@ -4746,7 +4954,7 @@
     observe(data, true /* asRootData */);
   }
 
-  function getData (data, vm) {
+  function getData(data, vm) {
     // #7573 disable dep collection when invoking data getters
     pushTarget();
     try {
@@ -4761,7 +4969,7 @@
 
   var computedWatcherOptions = { lazy: true };
 
-  function initComputed (vm, computed) {
+  function initComputed(vm, computed) {
     // $flow-disable-line
     var watchers = vm._computedWatchers = Object.create(null);
     // computed properties are just getters during SSR
@@ -4804,7 +5012,7 @@
     }
   }
 
-  function defineComputed (
+  function defineComputed(
     target,
     key,
     userDef
@@ -4824,7 +5032,7 @@
       sharedPropertyDefinition.set = userDef.set || noop;
     }
     if (
-        sharedPropertyDefinition.set === noop) {
+      sharedPropertyDefinition.set === noop) {
       sharedPropertyDefinition.set = function () {
         warn(
           ("Computed property \"" + key + "\" was assigned to but it has no setter."),
@@ -4835,8 +5043,8 @@
     Object.defineProperty(target, key, sharedPropertyDefinition);
   }
 
-  function createComputedGetter (key) {
-    return function computedGetter () {
+  function createComputedGetter(key) {
+    return function computedGetter() {
       var watcher = this._computedWatchers && this._computedWatchers[key];
       if (watcher) {
         if (watcher.dirty) {
@@ -4851,12 +5059,12 @@
   }
 
   function createGetterInvoker(fn) {
-    return function computedGetter () {
+    return function computedGetter() {
       return fn.call(this, this)
     }
   }
 
-  function initMethods (vm, methods) {
+  function initMethods(vm, methods) {
     var props = vm.$options.props;
     for (var key in methods) {
       {
@@ -4867,12 +5075,14 @@
             vm
           );
         }
+        //去重
         if (props && hasOwn(props, key)) {
           warn(
             ("Method \"" + key + "\" has already been defined as a prop."),
             vm
           );
         }
+        //Avoid defining component methods that start with _ or $ 关键字
         if ((key in vm) && isReserved(key)) {
           warn(
             "Method \"" + key + "\" conflicts with an existing Vue instance method. " +
@@ -4880,11 +5090,13 @@
           );
         }
       }
-      vm[key] = typeof methods[key] !== 'function' ? noop : bind(methods[key], vm);
+      //vm[key] = vm.methods[key]
+      //methods里面的方法放到外面
+      vm[key] = typeof methods[key] !== 'function' ? noop : bind(methods[key], vm); 
     }
   }
 
-  function initWatch (vm, watch) {
+  function initWatch(vm, watch) {
     for (var key in watch) {
       var handler = watch[key];
       if (Array.isArray(handler)) {
@@ -4897,7 +5109,7 @@
     }
   }
 
-  function createWatcher (
+  function createWatcher(
     vm,
     expOrFn,
     handler,
@@ -4913,7 +5125,7 @@
     return vm.$watch(expOrFn, handler, options)
   }
 
-  function stateMixin (Vue) {
+  function stateMixin(Vue) {
     // flow somehow has problems with directly declared definition object
     // when using Object.defineProperty, so we have to procedurally build up
     // the object here.
@@ -4957,7 +5169,7 @@
         invokeWithErrorHandling(cb, vm, [watcher.value], vm, info);
         popTarget();
       }
-      return function unwatchFn () {
+      return function unwatchFn() {
         watcher.teardown();
       }
     };
@@ -4967,12 +5179,14 @@
 
   var uid$2 = 0;
 
-  function initMixin (Vue) {
+  function initMixin(Vue) {
     Vue.prototype._init = function (options) {
       var vm = this;
-      // a uid
+      // a uid 每个实例一个id
       vm._uid = uid$2++;
 
+
+      //性能工具
       var startTag, endTag;
       /* istanbul ignore if */
       if ( config.performance && mark) {
@@ -4983,7 +5197,10 @@
 
       // a flag to avoid this being observed
       vm._isVue = true;
+
+
       // merge options
+      // 是组件
       if (options && options._isComponent) {
         // optimize internal component instantiation
         // since dynamic options merging is pretty slow, and none of the
@@ -4991,24 +5208,38 @@
         initInternalComponent(vm, options);
       } else {
         vm.$options = mergeOptions(
+          //静态方法的Vue.options
           resolveConstructorOptions(vm.constructor),
+          //用户options
           options || {},
+          //当前阶段的vm
           vm
         );
       }
-      /* istanbul ignore else */
+      //这下面的$options已经是整合之后
+      //
       {
         initProxy(vm);
       }
-      // expose real self
+      
+      // 将 vm 挂载到实例 _self 上
       vm._self = vm;
+      // 初始化组件实例关系属性，比如 $parent、$children、$root、$refs...
       initLifecycle(vm);
+      // 自定义事件的监听：谁注册，谁监听
       initEvents(vm);
-      initRender(vm);
+      // 插槽信息：vm.$slot
+      // 渲染函数：vm.$createElement（创建元素）
+      initRender(vm); 
+      // beforeCreate 钩子函数
       callHook(vm, 'beforeCreate');
+      // 初始化组件的 inject 配置项
       initInjections(vm); // resolve injections before data/props
+      // 数据响应式：props、methods、data、computed、watch
       initState(vm);
+      // 解析实例 vm.$options.provide 对象，挂载到 vm._provided 上，和 inject 对应。
       initProvide(vm); // resolve provide after data/props
+      // 调用 created 钩子函数
       callHook(vm, 'created');
 
       /* istanbul ignore if */
@@ -5024,9 +5255,9 @@
     };
   }
 
-  function initInternalComponent (vm, options) {
+  function initInternalComponent(vm, options) {
     var opts = vm.$options = Object.create(vm.constructor.options);
-    // doing this because it's faster than dynamic enumeration.
+    // doing this because it's faster than dynamic enumeration. 动态枚举
     var parentVnode = options._parentVnode;
     opts.parent = options.parent;
     opts._parentVnode = parentVnode;
@@ -5043,11 +5274,17 @@
     }
   }
 
-  function resolveConstructorOptions (Ctor) {
+  function resolveConstructorOptions(Ctor) {
     var options = Ctor.options;
+
+    // super 是子组件构造函数时会创建的属性
     if (Ctor.super) {
+
+      // 递归获取子组件的默认参数
       var superOptions = resolveConstructorOptions(Ctor.super);
       var cachedSuperOptions = Ctor.superOptions;
+
+      // 如果新获取的组件参数和原本不一样，则更新默认参数
       if (superOptions !== cachedSuperOptions) {
         // super option changed,
         // need to resolve new options.
@@ -5059,6 +5296,7 @@
           extend(Ctor.extendOptions, modifiedOptions);
         }
         options = Ctor.options = mergeOptions(superOptions, Ctor.extendOptions);
+        // 默认参数添加子组件
         if (options.name) {
           options.components[options.name] = Ctor;
         }
@@ -5067,7 +5305,7 @@
     return options
   }
 
-  function resolveModifiedOptions (Ctor) {
+  function resolveModifiedOptions(Ctor) {
     var modified;
     var latest = Ctor.options;
     var sealed = Ctor.sealedOptions;
@@ -5080,7 +5318,15 @@
     return modified
   }
 
-  function Vue (options) {
+  /* 
+      new Vue({
+        el: '#app',
+        router,
+        store,
+        render: h => h(App)
+      })
+  */
+  function Vue(options) {
     if (
       !(this instanceof Vue)
     ) {
@@ -9081,6 +9327,7 @@
   Vue.prototype.__patch__ = inBrowser ? patch : noop;
 
   // public mount method
+  console.log('platform');
   Vue.prototype.$mount = function (
     el,
     hydrating
@@ -11930,7 +12177,18 @@
     return el && el.innerHTML
   });
 
+  //保留原始mount
   var mount = Vue.prototype.$mount;
+
+  /* 
+  为什么重写mount(可对比entry-runtime.js)
+  首先将 runtime/index.js 中定义的原型方法 $mount 取出来重新定义，
+  在新定义的函数中通过 call 来调用原本的 mount 方法。
+  这样设计的意义在于编译+运行版和运行版的入口文件都调用需要 
+  runtime/index.js 中的 $mount 方法，
+  而只有编译版+运行版需要在 $mount 函数中“添加编译功能”，option.render。
+  接着给 Vue 构造函数添加全局方法 compile ，Vue 构造函数初始化到此结束。
+  */
   Vue.prototype.$mount = function (
     el,
     hydrating

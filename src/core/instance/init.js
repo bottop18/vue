@@ -15,9 +15,11 @@ let uid = 0
 export function initMixin(Vue: Class<Component>) {
   Vue.prototype._init = function (options?: Object) {
     const vm: Component = this
-    // a uid
+    // a uid 每个实例一个id
     vm._uid = uid++
 
+
+    //性能工具
     let startTag, endTag
     /* istanbul ignore if */
     if (process.env.NODE_ENV !== 'production' && config.performance && mark) {
@@ -28,7 +30,10 @@ export function initMixin(Vue: Class<Component>) {
 
     // a flag to avoid this being observed
     vm._isVue = true
+
+
     // merge options
+    // 是组件
     if (options && options._isComponent) {
       // optimize internal component instantiation
       // since dynamic options merging is pretty slow, and none of the
@@ -36,17 +41,22 @@ export function initMixin(Vue: Class<Component>) {
       initInternalComponent(vm, options)
     } else {
       vm.$options = mergeOptions(
+        //静态方法的Vue.options
         resolveConstructorOptions(vm.constructor),
+        //用户options
         options || {},
+        //当前阶段的vm
         vm
       )
     }
-    /* istanbul ignore else */
+    //这下面的$options已经是整合之后
+    //
     if (process.env.NODE_ENV !== 'production') {
       initProxy(vm)
     } else {
       vm._renderProxy = vm
     }
+    
     // 将 vm 挂载到实例 _self 上
     vm._self = vm
     // 初始化组件实例关系属性，比如 $parent、$children、$root、$refs...
@@ -55,7 +65,7 @@ export function initMixin(Vue: Class<Component>) {
     initEvents(vm)
     // 插槽信息：vm.$slot
     // 渲染函数：vm.$createElement（创建元素）
-    initRender(vm)
+    initRender(vm) 
     // beforeCreate 钩子函数
     callHook(vm, 'beforeCreate')
     // 初始化组件的 inject 配置项
@@ -82,7 +92,7 @@ export function initMixin(Vue: Class<Component>) {
 
 export function initInternalComponent(vm: Component, options: InternalComponentOptions) {
   const opts = vm.$options = Object.create(vm.constructor.options)
-  // doing this because it's faster than dynamic enumeration.
+  // doing this because it's faster than dynamic enumeration. 动态枚举
   const parentVnode = options._parentVnode
   opts.parent = options.parent
   opts._parentVnode = parentVnode
@@ -101,9 +111,15 @@ export function initInternalComponent(vm: Component, options: InternalComponentO
 
 export function resolveConstructorOptions(Ctor: Class<Component>) {
   let options = Ctor.options
+
+  // super 是子组件构造函数时会创建的属性
   if (Ctor.super) {
+
+    // 递归获取子组件的默认参数
     const superOptions = resolveConstructorOptions(Ctor.super)
     const cachedSuperOptions = Ctor.superOptions
+
+    // 如果新获取的组件参数和原本不一样，则更新默认参数
     if (superOptions !== cachedSuperOptions) {
       // super option changed,
       // need to resolve new options.
@@ -115,6 +131,7 @@ export function resolveConstructorOptions(Ctor: Class<Component>) {
         extend(Ctor.extendOptions, modifiedOptions)
       }
       options = Ctor.options = mergeOptions(superOptions, Ctor.extendOptions)
+      // 默认参数添加子组件
       if (options.name) {
         options.components[options.name] = Ctor
       }
